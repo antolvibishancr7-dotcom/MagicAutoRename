@@ -1,6 +1,4 @@
-import os
 import asyncio
-from aiohttp import web
 from pyrogram import Client
 
 API_ID = 39784792
@@ -14,23 +12,12 @@ app = Client(
     bot_token=BOT_TOKEN
 )
 
-async def handle(request):
-    return web.Response(text="Bot is running!")
-
-async def web_server():
-    server = web.Application()
-    server.add_routes([web.get('/', handle)])
-    runner = web.AppRunner(server)
-    await runner.setup()
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-
 async def main():
-    await web_server()
     await app.start()
-    print("Bot started")
+    print("Bot Started Successfully as Background Worker!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
