@@ -1,11 +1,13 @@
 import os
+from aiohttp import web
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
 # API credentials and bot token
 API_ID = 39784792
-API_HASH = "af8bb8dfb528691edbb33f7ee7669f2d"
-BOT_TOKEN = "8763983777:AAEQaJY_fslgnRtOq3VjhK-7sewHMdk-eXo"
+API_HASH = "af8bb8dfb528691edbb3f7ee7669d0c6"
+BOT_TOKEN = "8763983777:AAEQaJY_fslgnRtOq3VjHK-7sewHMdk-eXo"
 
 ADMIN_ID = 5727705309
 ADMIN_USERNAME = "@SilentKingKiller"
@@ -18,139 +20,26 @@ app = Client(
     bot_token=BOT_TOKEN
 )
 
-# List of authorized users
-AUTHORIZED_USERS = [ADMIN_ID]
+# HTTP Server handler for Render
+async def health_check(request):
+    return web.Response(text="Bot is running smoothly!")
 
-def is_authorized(user_id):
-    return user_id in AUTHORIZED_USERS
+async def start_web_server():
+    server = web.Application()
+    server.add_routes([web.get('/', health_check)])
+    runner = web.AppRunner(server)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"Web server started on port {port}")
 
-def access_denied_text():
-    return (
-        f"⛔️ **Access Denied: Your account is not authorized.** Contact {ADMIN_USERNAME} to get a subscription.\n\n"
-        f"💡 Contact {ADMIN_USERNAME} to get a subscription."
-    )
+async def main():
+    await start_web_server()
+    await app.start()
+    print("Pyrogram Bot Started")
+    # Keep the loop running
+    await asyncio.Event().wait()
 
-# /start command
-@app.on_message(filters.command("start"))
-async def start_command(client, message: Message):
-    if not is_authorized(message.from_user.id):
-        await message.reply_text(access_denied_text(), parse_mode="markdown")
-        return
-    
-    await message.reply_text(
-        "👋 **Welcome to Advanced Audio Rename Bot!**\n\n"
-        "Send me any large audio or document file (up to 2GB), and I will rename, watermark, and set thumbnail for you.",
-        parse_mode="markdown"
-    )
-
-# Admin command: Add premium user
-@app.on_message(filters.command("add_premium"))
-async def add_premium(client, message: Message):
-    if message.from_user.id != ADMIN_ID:
-        await message.reply_text("❌ You are not authorized to use this command.")
-        return
-    
-    try:
-        parts = message.text.split()
-        if len(parts) < 2:
-            await message.reply_text("Usage: `/add_premium <user_id>`", parse_mode="markdown")
-            return
-        
-        new_user_id = int(parts[1])
-        if new_user_id not in AUTHORIZED_USERS:
-            AUTHORIZED_USERS.append(new_user_id)
-        
-        await message.reply_text(f"✅ User `{new_user_id}` successfully added to authorized list.", parse_mode="markdown")
-    except Exception as e:
-        await message.reply_text(f"⚠️ Error: {str(e)}")
-
-# Admin command: Remove premium user
-@app.on_message(filters.command("remove_premium"))
-async def remove_premium(client, message: Message):
-    if message.from_user.id != ADMIN_ID:
-        await message.reply_text("❌ You are not authorized to use this command.")
-        return
-    
-    try:
-        parts = message.text.split()
-        if len(parts) < 2:
-            await message.reply_text("Usage: `/remove_premium <user_id>`", parse_mode="markdown")
-            return
-        
-        old_user_id = int(parts[1])
-        if old_user_id in AUTHORIZED_USERS and old_user_id != ADMIN_ID:
-            AUTHORIZED_USERS.remove(old_user_id)
-            await message.reply_text(f"✅ User `{old_user_id}` removed from authorized list.", parse_mode="markdown")
-        else:
-            await message.reply_text("⚠️ User not found or cannot remove admin.")
-    except Exception as e:
-        await message.reply_text(f"⚠️ Error: {str(e)}")
-
-# Save custom thumbnail command
-@app.on_message(filters.command("set_thumb") & filters.photo)
-async def set_thumbnail(client, message: Message):
-    if not is_authorized(message.from_user.id):
-        await message.reply_text(access_denied_text(), parse_mode="markdown")
-        return
-    
-    os.makedirs("downloads", exist_ok=True)
-    thumb_path = os.path.join("downloads", f"thumb_{message.from_user.id}.jpg")
-    await message.download(file_name=thumb_path)
-    await message.reply_text("✅ **Thumbnail successfully saved!**", parse_mode="markdown")
-
-# Handle large audio and document files
-@app.on_message(filters.audio | filters.document)
-async def handle_audio_files(client, message: Message):
-    if not is_authorized(message.from_user.id):
-        await message.reply_text(access_denied_text(), parse_mode="markdown")
-        return
-
-    try:
-        media = message.audio or message.document
-        file_name = getattr(media, "file_name", "audio.mp3")
-        
-        status_msg = await message.reply_text("📥 **Downloading large audio file... Please wait.**", parse_mode="markdown")
-        downloaded_path = await message.download()
-        
-        await status_msg.edit_text("⚙️ **Processing & Adding Watermark...**", parse_mode="markdown")
-
-        watermark = "@MagicFM"
-        base_name, ext = os.path.splitext(file_name)
-        new_file_name = f"{base_name} [{watermark}]{ext}"
-        
-        os.makedirs("downloads", exist_ok=True)
-        final_path = os.path.join("downloads", new_file_name)
-        os.rename(downloaded_path, final_path)
-
-        # Check if custom thumbnail exists
-        thumb_path = os.path.join("downloads", f"thumb_{message.from_user.id}.jpg")
-        thumb = thumb_path if os.path.exists(thumb_path) else None
-
-        await status_msg.edit_text("📤 **Uploading renamed file with thumbnail...**", parse_mode="markdown")
-
-        caption = f"✨ **File Successfully Renamed!**\n\n🎧 `{new_file_name}`\n📢 Powered by Magic FM"
-        
-        if message.audio:
-            await message.reply_audio(
-                audio=final_path,
-                caption=caption,
-                thumb=thumb,
-                parse_mode="markdown"
-            )
-        else:
-            await message.reply_document(
-                document=final_path,
-                caption=caption,
-                thumb=thumb,
-                parse_mode="markdown"
-            )
-
-        await status_msg.delete()
-        if os.path.exists(final_path):
-            os.remove(final_path)
-
-    except Exception as e:
-        await message.reply_text(f"⚠️ Error: {str(e)}")
-
-print("Pyrogram Auto Rename Bot is running smoothly for large files with thumbnail support...")
-app.run()
+if __name__ == "__main__":
+    asyncio.run(main())
