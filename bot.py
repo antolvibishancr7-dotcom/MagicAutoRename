@@ -3,15 +3,10 @@ import asyncio
 from aiohttp import web
 from pyrogram import Client
 
-# API credentials and bot token
 API_ID = 39784792
 API_HASH = "af8bb8dfb528691edbb3f7ee7669d0c6"
 BOT_TOKEN = "8763983777:AAEQaJY_fslgnRtOq3VjHK-7sewHMdk-eXo"
 
- ADMIN_ID = 5727705309
-ADMIN_USERNAME = "@SilentKingKiller"
-
-# Initialize Pyrogram Client
 app = Client(
     "audio_renamer_bot",
     api_id=API_ID,
@@ -19,24 +14,22 @@ app = Client(
     bot_token=BOT_TOKEN
 )
 
-async def health_check(request):
-    return web.Response(text="Bot is running smoothly!")
+async def handle(request):
+    return web.Response(text="Bot is running!")
 
-async def init_web_server():
+async def web_server():
     server = web.Application()
-    server.add_routes([web.get('/', health_check)])
+    server.add_routes([web.get('/', handle)])
     runner = web.AppRunner(server)
     await runner.setup()
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    print(f"Web server started on port {port}")
 
 async def main():
-    await init_web_server()
+    await web_server()
     await app.start()
-    print("Pyrogram Bot Started Successfully")
-    # Keep the service alive
+    print("Bot started")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
